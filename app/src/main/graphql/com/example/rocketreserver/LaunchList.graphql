@@ -5,6 +5,10 @@ query LaunchList {
         launches {
             id
             site
+            mission {
+                name
+                missionPatch(size: SMALL)
+            }
         }
     }
 }
