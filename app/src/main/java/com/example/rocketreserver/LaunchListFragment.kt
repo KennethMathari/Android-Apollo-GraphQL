@@ -8,8 +8,10 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.apollographql.apollo3.api.Optional
 import com.apollographql.apollo3.exception.ApolloException
 import com.example.rocketreserver.databinding.LaunchListFragmentBinding
+import kotlinx.coroutines.channels.Channel
 
 class LaunchListFragment : Fragment() {
     private lateinit var binding: LaunchListFragmentBinding
@@ -26,20 +28,44 @@ class LaunchListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        val launches = mutableListOf<LaunchListQuery.Launch>()
+        val adapter = LaunchListAdapter(launches)
+        binding.launches.layoutManager = LinearLayoutManager(requireContext())
+        binding.launches.adapter = adapter
+
+        val channel = Channel<Unit>(Channel.CONFLATED)
+
+        // Send a first item to do the initial load else the list will stay empty forever
+        channel.trySend(Unit)
+        adapter.onEndOfListReached = {
+            channel.trySend(Unit)
+        }
+
         lifecycleScope.launchWhenResumed {
-            val response = try {
-                apolloClient.query(LaunchListQuery()).execute()
-            } catch (e: ApolloException) {
-                Log.d("LaunchList", "Failure", e)
-                null
+            var cursor: String? = null
+            for (item in channel) {
+                val response = try {
+                    apolloClient.query(LaunchListQuery(Optional.Present(cursor))).execute()
+                } catch (e: ApolloException) {
+                    Log.d("LaunchList", "Failure", e)
+                    return@launchWhenResumed
+                }
+
+                val newLaunches = response.data?.launches?.launches?.filterNotNull()
+
+                if (newLaunches != null) {
+                    launches.addAll(newLaunches)
+                    adapter.notifyDataSetChanged()
+                }
+
+                cursor = response.data?.launches?.cursor
+                if (response.data?.launches?.hasMore != true) {
+                    break
+                }
             }
 
-            val launches = response?.data?.launches?.launches?.filterNotNull()
-            if (launches != null && !response.hasErrors()) {
-                val adapter = LaunchListAdapter(launches)
-                binding.launches.layoutManager = LinearLayoutManager(requireContext())
-                binding.launches.adapter = adapter
-            }
+            adapter.onEndOfListReached = null
+            channel.close()
         }
     }
 }
