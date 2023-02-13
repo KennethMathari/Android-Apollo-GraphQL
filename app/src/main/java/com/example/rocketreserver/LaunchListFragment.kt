@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.Navigation.findNavController
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.apollographql.apollo3.api.Optional
 import com.apollographql.apollo3.exception.ApolloException
@@ -66,6 +68,12 @@ class LaunchListFragment : Fragment() {
 
             adapter.onEndOfListReached = null
             channel.close()
+        }
+
+        adapter.onItemClicked = { launch ->
+            findNavController().navigate(
+                LaunchListFragmentDirections.openLaunchDetails(launchId = launch.id)
+            )
         }
     }
 }
