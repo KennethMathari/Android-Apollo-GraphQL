@@ -84,6 +84,31 @@ class LaunchDetailsFragment : Fragment() {
                 )
                 return@setOnClickListener
             }
+
+            binding.bookButton.visibility = View.INVISIBLE
+            binding.bookProgressBar.visibility = View.VISIBLE
+
+            lifecycleScope.launchWhenResumed {
+                val mutation = if (isBooked) {
+                    CancelTripMutation(id = args.launchId)
+                } else {
+                    BookTripMutation(id = args.launchId)
+                }
+
+                val response = try {
+                    apolloClient(requireContext()).mutation(mutation).execute()
+                } catch (e: ApolloException) {
+                    configureButton(isBooked)
+                    return@launchWhenResumed
+                }
+
+                if (response.hasErrors()) {
+                    configureButton(isBooked)
+                    return@launchWhenResumed
+                }
+
+                configureButton(!isBooked)
+            }
         }
     }
 }
